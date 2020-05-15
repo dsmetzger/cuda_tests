@@ -3,6 +3,28 @@
 #include <stdio.h>
 #include <iostream>
 
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define GL_GLEXT_PROTOTYPES 1
+
+#include <GL/gl.h>
+#include <GL/glut.h>
+//#include "GL/glext.h"
+#include <cuda.h>
+#include <cuda_runtime.h>
+//#include "cutil.h"
+#include <cuda_gl_interop.h>
+
+#include "GLFW/glfw3.h"
+
+//#define GL_GLEXT_PROTOTYPES
+
+//#define GLFW_INCLUDE_GLEXT
+
 __device__ void mult(float3 & out, const float3 & vec, const float mult){
     out.x = vec.x*mult;
     out.y = vec.y*mult;
@@ -85,6 +107,45 @@ __global__ void loop(float3 * cDebug, float3 * cPos, float3 * cVel, float3 * cAc
     bound(cPos[idx]);
 }
 
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    glViewport(0, 0, width, height);
+}  
+
+
+static const char* vertex_shader_text =
+"#version 110\n"
+"uniform mat4 MVP;\n"
+"attribute vec3 vCol;\n"
+"attribute vec2 vPos;\n"
+"varying vec3 color;\n"
+"void main()\n"
+"{\n"
+"    gl_Position = MVP * vec4(vPos, 0.0, 1.0);\n"
+"    color = vCol;\n"
+"}\n";
+ 
+static const char* fragment_shader_text =
+"#version 110\n"
+"varying vec3 color;\n"
+"void main()\n"
+"{\n"
+"    gl_FragColor = vec4(color, 1.0);\n"
+"}\n";
+
+
+static void error_callback(int error, const char* description)
+{
+    fprintf(stderr, "Error: %s\n", description);
+}
+ 
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS){
+        //glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+}
+
 using namespace std;
 
 int main(int argc, char ** argv) {
@@ -98,6 +159,30 @@ int main(int argc, char ** argv) {
 
     const float mass=.1;
     const float dt = .01;
+
+    GLuint vertex_buffer, vertex_shader, fragment_shader, program;
+    GLint mvp_location, vpos_location, vcol_location;
+
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    GLFWwindow* window = glfwCreateWindow(800, 600, "LearnOpenGL", NULL, NULL);
+    if (window == NULL)
+    {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+
+    glfwSetErrorCallback(error_callback);
+
+    glfwMakeContextCurrent(window);
+
+    glViewport(0, 0, 800, 600);
+
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);  
 
     // declare GPU memory pointers
     float3 * cDebug;
@@ -120,8 +205,33 @@ int main(int argc, char ** argv) {
 
         //cForce[x].x=0;
     }
+
+/*
+    GLuint vertexArray;
+    glGenBuffers( 1,&vertexArray);
+    glBindBuffer( GL_ARRAY_BUFFER, vertexArray);
+    glBufferData( GL_ARRAY_BUFFER, DIMENSIONS*ARRAY_SIZE*sizeof(float), NULL, GL_DYNAMIC_COPY );
+    cudaGLRegisterBufferObject( vertexArray );
+
+
+    GLuint gl_buffer, gl_target;
     
-    
+    struct cudaGraphicsResource *vbo_res;
+    cudaGraphicsGLRegisterImage(&vbo_res, gl_buffer, gl_target, cudaGraphicsRegisterFlagsSurfaceLoadStore);
+*/
+
+    glGenBuffers(1, &vertex_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+    glBufferData(GL_ARRAY_BUFFER, DIMENSIONS*ARRAY_SIZE*sizeof(float), cPos, GL_STATIC_DRAW);
+
+    vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertex_shader, 1, &vertex_shader_text, NULL);
+    glCompileShader(vertex_shader);
+ 
+    fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragment_shader, 1, &fragment_shader_text, NULL);
+    glCompileShader(fragment_shader);
+
     //init<<<1, ARRAY_SIZE>>>(cDebug, cPos, cVel, mass, dt);
 
     for (int x = 0; x<5; ++x){
@@ -135,6 +245,13 @@ int main(int argc, char ** argv) {
 
 
     }
+
+    //while(!glfwWindowShouldClose(window))
+    {
+        glfwSwapBuffers(window);
+        glfwPollEvents();    
+    }
+    glfwTerminate();
 
     cudaDeviceSynchronize();
 
