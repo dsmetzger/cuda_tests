@@ -1,0 +1,57 @@
+
+https://docs.nvidia.com/cuda/cuda-math-api/index.html
+
+Going a step further, if most functions are defined as __host____device__ rather than just __device__ functions, then these functions can be tested on both the CPU and the GPU
+
+All kernel launches are asynchronous, as are memory-copy functions with the Async suffix on their names. Therefore, to accurately measure the elapsed time for a particular call or sequence of CUDA calls, it is necessary to synchronize the CPU thread with the GPU by calling cudaDeviceSynchronize() immediately before starting and stopping the CPU timer. cudaDeviceSynchronize()blocks the calling CPU thread until all CUDA calls previously issued by the thread are completed. 
+
+Be aware that CPU-to-GPU synchronization points such as those mentioned in this section imply a stall in the GPU's processing pipeline and should thus be used sparingly to minimize their performance impact. 
+
+16 GB/s on the PCIe x16 Gen3
+
+used one load of shared memory and then sync threads for faster memory reads
+
+Device memory allocation and de-allocation via cudaMalloc() and cudaFree() are expensive operations, so device memory should be reused and/or sub-allocated by the application wherever possible to minimize the impact of allocations on overall performance. 
+
+use sinf instead of sin
+
+The -use_fast_math compiler option of nvcc coerces every functionName() call to the equivalent __functionName() call.
+
+
+cudaGetDeviceCount() can be used to detect if cuda is available on computer.
+
+Device = GPU. Host = CPU
+
+
+
+
+
+
+
+
+////////////////////////////
+//FFT
+
+#include <cuComplex.h>
+
+//cuFFT
+//inc/cufft.h, /usr/local/cuda/bin/nvcc [options] filename.cu … -I/usr/local/cuda/inc -L/usr/local/cuda/lib -lcufft
+#define NX 256
+#define BATCH 10
+#define RANK 1
+...
+{
+    cufftHandle plan;
+    cufftComplex *data;
+    ...
+    cudaMalloc((void**)&data, sizeof(cufftComplex)*NX*BATCH);
+    cufftPlanMany(&plan, RANK, NX, &iembed, istride, idist, 
+        &oembed, ostride, odist, CUFFT_C2C, BATCH);
+    ...
+    cufftExecC2C(plan, data, data, CUFFT_FORWARD);
+    cudaDeviceSynchronize();
+    ...
+    cufftDestroy(plan);
+    cudaFree(data);
+}
+
