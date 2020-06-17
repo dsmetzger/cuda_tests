@@ -7,19 +7,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define GL_GLEXT_PROTOTYPES 1
+#include "glfw_common.hh"
 
-#include <GL/gl.h>
-#include <GL/glut.h>
-//#include "GL/glext.h"
 #include <cuda.h>
 #include <cuda_runtime.h>
 //#include "cutil.h"
 #include <cuda_gl_interop.h>
 
-#include "GLFW/glfw3.h"
 
-#include "linmath.h"
 
 //#define GL_GLEXT_PROTOTYPES
 
@@ -107,54 +102,35 @@ __global__ void loop(float3 * cDebug, float3 * cPos, float3 * cVel, float3 * cAc
     bound(cPos[idx]);
 }
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-    glViewport(0, 0, width, height);
-}  
+__global__ void send_to_opengl(float3 * cPos, float3 * cGraph){
+    int idx = threadIdx.x;
+    int outIdx = 1*threadIdx.x;
+    //if (idx == 0)
+    {
+        cGraph[outIdx].x = cPos[idx].x;
+        cGraph[outIdx].y = cPos[idx].y;
+        cGraph[outIdx].z = cPos[idx].z;
+        cGraph[outIdx+1].x = 1.0;
+        cGraph[outIdx+1].y = 1.0;
+        cGraph[outIdx+1].z = 1.0;
 
-struct vertice{
-    float x, y;
-    float r, g, b;
-} vertices[3] =
-{
-    { -0.6f, -0.4f, 1.f, 0.f, 0.f },
-    {  0.6f, -0.4f, 0.f, 1.f, 0.f },
-    {   0.f,  0.6f, 0.f, 0.f, 1.f }
-};
- 
+        cGraph[outIdx+2].x = cPos[idx].x+.1; 
+        cGraph[outIdx+2].y = cPos[idx].y+.1;
+        cGraph[outIdx+2].z = cPos[idx].z;
+        cGraph[outIdx+3].x = 1.0;
+        cGraph[outIdx+3].y = 1.0;
+        cGraph[outIdx+3].z = 1.0;
 
-static const char* vertex_shader_text =
-"#version 110\n"
-"uniform mat4 MVP;\n"
-"attribute vec3 vCol;\n"
-"attribute vec2 vPos;\n"
-"varying vec3 color;\n"
-"void main()\n"
-"{\n"
-"    gl_Position = MVP * vec4(vPos, 0.0, 1.0);\n"
-"    color = vCol;\n"
-"}\n";
- 
-static const char* fragment_shader_text =
-"#version 110\n"
-"varying vec3 color;\n"
-"void main()\n"
-"{\n"
-"    gl_FragColor = vec4(color, 1.0);\n"
-"}\n";
-
-
-static void error_callback(int error, const char* description)
-{
-    fprintf(stderr, "Error: %s\n", description);
-}
- 
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS){
-        //glfwSetWindowShouldClose(window, GLFW_TRUE);
+        cGraph[outIdx+4].x = cPos[idx].x+.1;
+        cGraph[outIdx+4].y = cPos[idx].y-.1;
+        cGraph[outIdx+4].z = cPos[idx].z;
+        cGraph[outIdx+5].x = 1.0;
+        cGraph[outIdx+5].y = 1.0;
+        cGraph[outIdx+5].z = 1.0;
     }
 }
+
+
 
 using namespace std;
 
@@ -166,10 +142,15 @@ int main(int argc, char ** argv) {
     //const int ARRAY_BYTES = ARRAY_SIZE * FLOAT_SIZE;
     const int DIMENSIONS = 3;
 
-    int DEBUG = 1;
+    cudaGraphicsResource_t resource = 0;
+
+    int DEBUG = 0;
 
     const float mass=.1;
     const float dt = .01;
+
+    //vertice2D vertices[3] ={{ -0.6f, -0.4f, 1.f, 0.f, 0.f },{  0.6f, -0.4f, 0.f, 1.f, 0.f },{   0.f,  0.6f, 0.f, 0.f, 1.f }};
+    vertice3D vertices[ARRAY_SIZE];
 
     //opengl pointers
     GLuint vertex_buffer, vertex_shader, fragment_shader, program;
@@ -238,7 +219,17 @@ int main(int argc, char ** argv) {
     glGenBuffers(1, &vertex_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    //glBufferData(GL_ARRAY_BUFFER, DIMENSIONS*ARRAY_SIZE*sizeof(float), cPos, GL_STATIC_DRAW);
+
+    //glGenBuffers(1, &pbo);
+    //glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
+    //glBufferData(GL_PIXEL_PACK_BUFFER, pitch * h, 0, GL_STREAM_COPY);
+    cudaGraphicsGLRegisterBuffer(&resource, vertex_buffer, cudaGraphicsRegisterFlagsWriteDiscard);
+
+    cudaGraphicsMapResources(1, &resource);
+    void* device_ptr = 0;
+    size_t size = 0;//shared size bytes  
+    cudaGraphicsResourceGetMappedPointer(&device_ptr, &size, resource);
+    std::cout<<"shared size bytes "<<size<<std::endl;
 
     vertex_shader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertex_shader, 1, &vertex_shader_text, NULL);
@@ -264,6 +255,7 @@ int main(int argc, char ** argv) {
 
     //init<<<1, ARRAY_SIZE>>>(cDebug, cPos, cVel, mass, dt);
 
+    /*
     for (int x = 0; x<5; ++x){
         if (DEBUG==1){
             cudaDeviceSynchronize();
@@ -273,9 +265,19 @@ int main(int argc, char ** argv) {
         loop<<<1, ARRAY_SIZE>>>(cDebug, cPos, cVel, cAccel, cForce, mass, dt, ARRAY_SIZE);
         //graph<<<1, ARRAY_SIZE>>>(cDebug, cPos, cVel, mass, dt);
     }
+    */
 
+    int iters = 0;
     while(!glfwWindowShouldClose(window))
     {
+
+        loop<<<1, ARRAY_SIZE>>>(cDebug, cPos, cVel, cAccel, cForce, mass, dt, ARRAY_SIZE);
+        send_to_opengl<<<1, ARRAY_SIZE>>>(cPos, (float3*)device_ptr);
+        cudaDeviceSynchronize();//TODO:replace with right synch
+
+        //vertice3D* tmpPtr = (vertice3D*)device_ptr;
+        //tmpPtr[0].print();
+
         float ratio;
         int width, height;
         mat4x4 m, p, mvp;
@@ -297,7 +299,10 @@ int main(int argc, char ** argv) {
  
         glfwSwapBuffers(window);
         glfwPollEvents();
+
+        ++iters;
     }
+    std::cout << iters << std::endl;
 
     glfwDestroyWindow(window);
     glfwTerminate();
