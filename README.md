@@ -2,24 +2,18 @@
 
 nvcc particles.cu -w -lglut -lglfw -lGL  
 
-TODO:  
--Make precompiled header  
 
 
 
 
-FILE_DESCRIPTIONS:  
--  
+//c
 
-
-
-nvcc particles.cu -lglfw  
-
-//nvcc particles.cu -lglut -lglfw -lGL  
-
+# packages 
 sudo apt-get update  
 sudo apt-get install libglfw3  
 sudo apt-get install libglfw3-dev  
+nvidia-cuda-toolkit
+sudo apt-get install freeglut3-dev
 
 
 

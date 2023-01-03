@@ -18,7 +18,8 @@ int main(int argc, char ** argv) {
 	float h_in[ARRAY_SIZE];
 	for (int i = 0; i < ARRAY_SIZE; i++) {
 		h_in[i] = float(i);
-	}
+		printf("%i, ", (int)h_in[i]);
+	}printf("\n");
 	float h_out[ARRAY_SIZE];
 
 	// declare GPU memory pointers
@@ -29,10 +30,15 @@ int main(int argc, char ** argv) {
 	cudaMalloc((void**) &d_in, ARRAY_BYTES);
 	cudaMalloc((void**) &d_out, ARRAY_BYTES);
 
+	if (d_in==NULL){
+		return EXIT_FAILURE;
+	}
+
 	// transfer the array to the GPU
 	cudaMemcpy(d_in, h_in, ARRAY_BYTES, cudaMemcpyHostToDevice);
 
 	// launch the kernel
+	printf("===LAUNCH KERNEL===\n");
 	cube<<<1, ARRAY_SIZE>>>(d_out, d_in);
 
 	// copy back the result array to the CPU
@@ -40,9 +46,8 @@ int main(int argc, char ** argv) {
 
 	// print out the resulting array
 	for (int i =0; i < ARRAY_SIZE; i++) {
-		printf("%f", h_out[i]);
-		printf(((i % 4) != 3) ? "\t" : "\n");
-	}
+		printf("%i, ", (int)h_out[i]);
+	}printf("\n");
 
 	cudaFree(d_in);
 	cudaFree(d_out);

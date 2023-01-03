@@ -134,6 +134,8 @@ __global__ void send_to_opengl(float3 * cPos, float3 * cGraph){
 
 using namespace std;
 
+#define DEBUG 0
+
 int main(int argc, char ** argv) {
     //Constans
     srand(time(NULL));
@@ -143,8 +145,6 @@ int main(int argc, char ** argv) {
     const int DIMENSIONS = 3;
 
     cudaGraphicsResource_t resource = 0;
-
-    int DEBUG = 0;
 
     const float mass=.1;
     const float dt = .01;
@@ -187,12 +187,16 @@ int main(int argc, char ** argv) {
     float3 * cAccel;
     float3 * cForce;
 
-    cudaMallocManaged(&cDebug, DIMENSIONS*ARRAY_SIZE*sizeof(float));//memory usable by host and gpu
+    cudaMalloc(&cDebug, DIMENSIONS*ARRAY_SIZE*sizeof(float));//memory usable by host and gpu
     cudaMallocManaged(&cPos, DIMENSIONS*ARRAY_SIZE*sizeof(float));//memory usable by host and gpu
     cudaMallocManaged(&cVel, DIMENSIONS*ARRAY_SIZE*sizeof(float));//memory usable by host and gpu
     cudaMallocManaged(&cAccel, DIMENSIONS*ARRAY_SIZE*sizeof(float));//memory usable by host and gpu
     cudaMallocManaged(&cForce, DIMENSIONS*ARRAY_SIZE*sizeof(float));//memory usable by host and gpu
-
+    if (cDebug==NULL){
+        glfwTerminate();
+        printf("Null pointer %li\n", DIMENSIONS*ARRAY_SIZE*sizeof(float));
+        return -1;
+    }
     // initialize
     for (int x = 0; x<ARRAY_SIZE; ++x){
         cPos[x].x=float(rand())/float(RAND_MAX)-.5;
